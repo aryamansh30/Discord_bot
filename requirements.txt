@@ -1,0 +1,6 @@
+discord.py 
+beautifulsoup4 
+requests 
+python-dotenv
+apscheduler
+selenium
