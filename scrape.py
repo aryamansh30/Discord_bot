@@ -54,8 +54,67 @@ def get_amazon_jobs():
     # remove duplicates
     return list({j['link']:j for j in jobs}.values())
 
-# implement get_google_jobs() and get_microsoft_jobs() similarly,
-# copying from your existing functions but returning a list of dicts.
+def get_google_jobs():
+    url = (
+        "https://www.google.com/about/careers/applications/jobs/results/"
+        "?q=Software%20Intern&location=United%20States"
+        "&target_level=INTERN_AND_APPRENTICE&employment_type=INTERN"
+        "&sort_by=date&degree=BACHELORS"
+    )
+    drv = get_driver()
+    jobs = []
+    try:
+        drv.get(url)
+        wait = WebDriverWait(drv, 10)
+        cards = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div.Ln1EL")))
+        for card in cards:
+            try:
+                title = card.find_element(By.CSS_SELECTOR, "h3.QJPWVe").text.strip()
+                link_elem = card.find_element(By.CSS_SELECTOR, "a.WpHeLc")
+                href = link_elem.get_attribute("href")
+                full_link = urllib.parse.urljoin(url, href)
+                jobs.append({"title": title, "link": full_link})
+            except Exception as e:
+                log(f"⚠️ Google parsing card failed: {e}")
+        return jobs
+    except Exception as e:
+        log(f"❌ Google scraping failed: {e}")
+        return []
+    finally:
+        drv.quit()
+
+
+def get_microsoft_jobs():
+    jobs = []
+    for page in range(1, MICROSOFT_MAX_PAGES + 1):
+        url = (
+            f"https://jobs.careers.microsoft.com/global/en/search?"
+            f"q=Software&lc=United%20States&exp=Students%20and%20graduates&et=Internship"
+            f"&l=en_us&pg={page}&pgSz=20&o=Relevance&flt=true"
+        )
+        drv = get_driver()
+        try:
+            drv.get(url)
+            wait = WebDriverWait(drv, 10)
+            wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div.ms-List-cell")))
+            cards = drv.find_elements(By.CSS_SELECTOR, "div.ms-List-cell")
+            for card in cards:
+                try:
+                    title_elem = card.find_element(By.CSS_SELECTOR, "h2")
+                    title = title_elem.text.strip()
+                    # The old logic of clicking the 'See details' button is problematic in headless mode.
+                    # Instead, we can construct the link directly.
+                    job_id = card.get_attribute("data-automation-id")
+                    link = f"https://jobs.careers.microsoft.com/global/en/job/{job_id}/"
+                    jobs.append({"title": title, "link": link})
+                except Exception as e:
+                    log(f"⚠️ Microsoft parsing card failed: {e}")
+        except Exception as e:
+            log(f"❌ Microsoft scraping failed on page {page}: {e}")
+        finally:
+            drv.quit()
+    # remove duplicates
+    return list({j['link']:j for j in jobs}.values())
 
 SCRAPERS = {
     "amazon": get_amazon_jobs,
